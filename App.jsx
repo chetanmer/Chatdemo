@@ -1,20 +1,44 @@
-import { PermissionsAndroid, Platform, StatusBar, StyleSheet, View } from 'react-native';
-import React, { useContext, useEffect, useState } from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import {
+  PermissionsAndroid,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  View,
+} from 'react-native';
+import React, {useContext, useEffect, useState} from 'react';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import Navigator from './src/Navigation/Navigator';
-import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
+import {getAuth, onAuthStateChanged} from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
-import NetInfo from "@react-native-community/netinfo";
+import NetInfo from '@react-native-community/netinfo';
 import NoInternetScreen from './src/Screens/NoInternetScreen';
 import Animation from './src/Screens/Animation';
-import { themecontext, ThemeProvider } from './src/utils/ThemeContext'; // Ensure this is exported correctly
+import {themecontext, ThemeProvider} from './src/utils/ThemeContext'; // Ensure this is exported correctly
 import messaging from '@react-native-firebase/messaging';
-import notifee, { AndroidCategory, AndroidImportance } from '@notifee/react-native';
+import notifee, {
+  AndroidCategory,
+  AndroidImportance,
+} from '@notifee/react-native';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://fca06eb139fc9b1627065a2c828ab9a9@o4510911317278720.ingest.us.sentry.io/4510911318654976',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: true,
+
+  // Enable Logs
+  enableLogs: true,
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 // 1. Create a "Main" component to handle the logic that needs the Theme
 const AppContent = () => {
   // Now this will work because it's inside <ThemeProvider>
-  const { theme } = useContext(themecontext);
+  const {theme} = useContext(themecontext);
 
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState(null);
@@ -35,54 +59,53 @@ const AppContent = () => {
 
     // Request Permission
     if (Platform.OS === 'android' && Platform.Version >= 33) {
-      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+      );
     }
   };
 
   useEffect(() => {
-
     setupNotifications();
 
     const unsubscribeFCM = messaging().onMessage(async remoteMessage => {
-
       await notifee.displayNotification({
         title: remoteMessage.notification?.title,
         body: remoteMessage.notification?.body,
-        data: { callId: remoteMessage.data.callId },
+        data: {callId: remoteMessage.data.callId},
         android: {
           channelId: 'calls',
           importance: AndroidImportance.HIGH,
           category: AndroidCategory.CALL,
-          pressAction: { id: 'default', launchActivity: 'default' },
+          pressAction: {id: 'default', launchActivity: 'default'},
           fullScreenAction: {
             id: 'default',
-            launchActivity: 'default'
+            launchActivity: 'default',
           },
           actions: [
             {
               title: 'Reject',
-              pressAction: { id: 'Reject' }
+              pressAction: {id: 'Reject'},
             },
             {
               title: 'Accept',
-              pressAction: { id: 'Accept' }
-            }
-          ]
+              pressAction: {id: 'Accept'},
+            },
+          ],
         },
       });
-
     });
 
     // return unsubscribeFCM;
     return () => {
       unsubscribeFCM();
       // unsubscribeNotifee();
-    }
+    };
   }, []);
 
   // Auth & Firestore Listeners
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(getAuth(), (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(getAuth(), firebaseUser => {
       setUser(firebaseUser);
       setAuthChecked(true);
     });
@@ -99,7 +122,7 @@ const AppContent = () => {
       .collection('users')
       .onSnapshot(snapshot => {
         const list = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .map(doc => ({id: doc.id, ...doc.data()}))
           .filter(u => u.id !== user.uid);
 
         // OPTIMIZATION: Only update state if the data actually changed
@@ -134,18 +157,22 @@ const AppContent = () => {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{flex: 1}}>
       {/* Fallback to 'white' if theme is not yet loaded */}
       <StatusBar
         backgroundColor={theme?.background || 'white'}
-        barStyle={theme?.background === 'white' ? 'dark-content' : 'light-content'}
+        barStyle={
+          theme?.background === 'white' ? 'dark-content' : 'light-content'
+        }
       />
 
       <Navigator user={user} allUser={allUser} />
 
       <NoInternetScreen
         visible={!isConnected}
-        onRetry={() => NetInfo.fetch().then(state => setIsConnected(state.isConnected))}
+        onRetry={() =>
+          NetInfo.fetch().then(state => setIsConnected(state.isConnected))
+        }
       />
     </GestureHandlerRootView>
   );
@@ -160,4 +187,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default Sentry.wrap(App);
