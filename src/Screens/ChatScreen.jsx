@@ -15,7 +15,8 @@ import Modal from 'react-native-modal';
 import { launchImageLibrary } from 'react-native-image-picker';
 import FastImage from 'react-native-fast-image'
 import ImageViewer from 'react-native-image-zoom-viewer';
-import { BACKEND_URL, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET,AGORA_APP_ID } from '@env'
+import { BACKEND_URL, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, AGORA_APP_ID } from '@env'
+import CustomModal from '../CustomComponent/CustomModal';
 
 const ChatScreen = ({ route, navigation }) => {
 
@@ -36,6 +37,10 @@ const ChatScreen = ({ route, navigation }) => {
     const [modalvisible, setModalVisible] = useState(false);
     const [modalImage, setModalImage] = useState(false);
     const [selectedImage, setSelectedImage] = useState([]);
+
+    const [deleteModal, setDeleteModal] = useState(false);
+    const [selectedMessage, setSelectedMessage] = useState(null);
+
 
     const flatListRef = useRef(null);
     const audioInitializedRef = useRef(false);
@@ -567,17 +572,77 @@ const ChatScreen = ({ route, navigation }) => {
         setText('');
     }, [text, currentUser.uid, selectedUser.uid, ChatId])
 
+    const deleteForEveryone = async () => {
+        if (!selectedMessage || selectedMessage.isDeleted) return;
+
+        try {
+            await firestore()
+                .collection('chats')
+                .doc(ChatId)
+                .collection('messages')
+                .doc(selectedMessage.id)
+                .update({
+                    text: "This message was deleted",
+                    imageUrl: null,
+                    audioUrl: null,
+                    isDeleted: true
+                });
+            setSelectedMessage(null);
+
+        } catch (error) {
+            console.log("Delete error:", error);
+        }
+    };
+
     const renderItem = useCallback(({ item }) => {
         const isMe = item.sender === currentUser.uid;
         const isPlaying = playingId === item.id && !isPaused;
         const imageSource = (isMe && item.localPath) ? item.localPath : item.imageUrl;
 
+        if (item.isDeleted) {
+            return (
+                <View
+                    style={[
+                        styles.msgBox,
+                        isMe ? styles.myMsg : styles.otherMsg,
+                        // { backgroundColor: isMe ? '#6aaefc' : '#d3d3d3' }
+                    ]}
+                >
+                    <View style={{ flexDirection: 'row' }}>
+                        <Text style={[
+                            styles.deletedText,
+                            { color: isMe ? '#fff' : '#555' }
+                        ]}>
+                            {isMe ? "You deleted this message" : "This message was deleted"}
+                        </Text>
+
+                        {isMe && (
+                            <View style={styles.tickUnderContent}>
+                                {item.seen
+                                    ? <Icon name="checkmark-done" size={15} color="#34B7F1" />
+                                    : <Icon name="checkmark-done" size={15} color="#fff" />
+                                }
+                            </View>
+                        )}
+                    </View>
+                </View>
+            );
+        }
         return (
-            <View style={[
-                styles.msgBox,
-                isMe ? styles.myMsg : styles.otherMsg,
-                item.type === 'image' && { padding: 0, overflow: 'hidden' }
-            ]}>
+            <TouchableOpacity
+                onLongPress={() => {
+                    if (isMe && !item.isDeleted) {
+                        setSelectedMessage(item);
+                        setDeleteModal(true);
+                    }
+                }}
+                style={[
+                    styles.msgBox,
+                    isMe ? styles.myMsg : styles.otherMsg,
+                    item.type === 'image' && { padding: 0, overflow: 'hidden' }
+                ]}
+                activeOpacity={0.7}
+            >
                 {item.type === 'audio' ? (
                     /* --- VOICE CHAT BOX --- */
                     <View style={styles.verticalStack}>
@@ -607,6 +672,12 @@ const ChatScreen = ({ route, navigation }) => {
                             setSelectedImage([{ url: item.imageUrl }])
                             setModalImage(true);
                         }}
+                        onLongPress={() => {
+                            if (isMe && !item.isDeleted) {
+                                setSelectedMessage(item);
+                                setDeleteModal(true);
+                            }
+                        }}
                     >
                         <FastImage source={{ uri: imageSource }} style={styles.chatImage} />
                         {isMe && (
@@ -632,9 +703,9 @@ const ChatScreen = ({ route, navigation }) => {
                 )}
 
                 {/* NO EXTERNAL TICK CONTAINER HERE */}
-            </View>
+            </TouchableOpacity>
         )
-    }, [playingId, theme.viewcolor, isPaused, currentUser.uid, togglePlayPause])
+    }, [playingId, isPaused, currentUser.uid, togglePlayPause])
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
 
@@ -811,6 +882,19 @@ const ChatScreen = ({ route, navigation }) => {
                 </View>
             </Modal>
 
+            <CustomModal
+                visible={deleteModal}
+                title="Delete message?"
+                message="This message will be deleted for everyone."
+                cancelText="Cancel"
+                confirmText="Delete"
+                onCancel={() => setDeleteModal(false)}
+                onConfirm={() => {
+                    setDeleteModal(false)
+                    deleteForEveryone()
+                }}
+            />
+
         </View>
     )
 }
@@ -903,6 +987,10 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: scaleFont(15),
     },
+    deletedText: {
+        fontStyle: 'italic',
+        fontSize: scaleFont(14),
+    },
     verticalStack: {
         flexDirection: 'row',
         alignItems: 'flex-start', // Keeps content to the left
@@ -935,12 +1023,6 @@ const styles = StyleSheet.create({
     recordingText: {
         color: 'red',
         fontWeight: '600',
-    },
-    audioRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        // minWidth: horizontalscale(150),
-        paddingVertical: verticalScale(5),
     },
     waveformContainer: {
         flexDirection: 'row',
