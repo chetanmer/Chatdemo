@@ -29,17 +29,28 @@ const Navigator = ({ user, allUser }) => {
     }
   };
 
+  const navigateToCall = (callId) => {
+    if (!callId) return;
+
+    const id = String(callId);
+
+    const attemptNavigation = () => {
+      if (navigationRef.isReady()) {
+        navigationRef.navigate('IncomingCallScreen', { callId: id });
+      }
+    };
+
+    attemptNavigation();
+
+    setTimeout(attemptNavigation, 500);
+  };
+
   useEffect(() => {
 
     // App opened from background
     const unsubscribe = messaging().onNotificationOpenedApp(remoteMessage => {
       if (remoteMessage?.data?.type === 'call') {
-        if (navigationRef.isReady()) {
-          navigationRef.navigate('IncomingCallScreen', {
-            callId: remoteMessage.data.callId,
-            // isCaller: false,
-          });
-        }
+        navigateToCall(remoteMessage?.data?.callId);
       }
     });
 
@@ -48,12 +59,7 @@ const Navigator = ({ user, allUser }) => {
       .getInitialNotification()
       .then(remoteMessage => {
         if (remoteMessage?.data?.type === 'call') {
-          if (navigationRef.isReady()) {
-            navigationRef.navigate('IncomingCallScreen', {
-              callId: remoteMessage.data.callId,
-              // isCaller: false,
-            });
-          }
+          navigateToCall(remoteMessage?.data?.callId);
         }
       });
 
@@ -67,12 +73,8 @@ const Navigator = ({ user, allUser }) => {
       if (type === EventType.PRESS) {
         const callId = detail.notification?.data?.callId;
 
-        if (callId && navigationRef.isReady()) {
-          navigationRef.navigate('IncomingCallScreen', {
-            callId: callId,
-            // isCaller: false,
-          });
-        }
+        navigateToCall(callId);
+
         notifee.cancelNotification(detail.notification.id); // ✅ ADD THIS
 
       }
@@ -100,9 +102,6 @@ const Navigator = ({ user, allUser }) => {
       }
 
     });
-
-
-
 
     return () => {
       unsubscribe();

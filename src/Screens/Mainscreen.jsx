@@ -1,4 +1,4 @@
-import { StyleSheet, Text, TouchableOpacity, View, FlatList, Image, BackHandler, Appearance } from 'react-native'
+import { StyleSheet, Text, TouchableOpacity, View, FlatList, Image, BackHandler, Appearance, Platform, PermissionsAndroid } from 'react-native'
 import React, { useState, useEffect, useCallback, memo, useContext, useRef } from 'react'
 import { horizontalscale, verticalScale, moderateScale, scaleFont } from '../utils/DesignHelper';
 import { getAuth } from '@react-native-firebase/auth';
@@ -56,7 +56,7 @@ const Mainscreen = ({ user, allUser }) => {
         const syncToken = async () => {
             const token = await messaging().getToken();
             console.log(token);
-            
+
 
             await firestore()
                 .collection('users')
@@ -148,6 +148,28 @@ const Mainscreen = ({ user, allUser }) => {
             unsubscribesRef.current = {};
         };
     }, [allUser, currentUser?.uid]);
+
+    useEffect(() => {
+        const requestNotificationPermission = async () => {
+            // Request Permission for Android 13+ (API 33)
+            if (Platform.OS === 'android' && Platform.Version >= 33) {
+                try {
+                    const granted = await PermissionsAndroid.request(
+                        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+                    );
+                    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                        console.log('Notification permission granted');
+                    } else {
+                        console.log('Notification permission denied');
+                    }
+                } catch (err) {
+                    console.warn(err);
+                }
+            }
+        };
+
+        requestNotificationPermission();
+    }, []); // Runs once when Mainscreen loads
 
     const formatTime = useCallback((timestamp) => {
         if (!timestamp) return "";

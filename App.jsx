@@ -42,23 +42,21 @@ const AppContent = () => {
       vibration: true,
       vibrationPattern: [300, 500],
     });
-
-    // Request Permission
-    if (Platform.OS === 'android' && Platform.Version >= 33) {
-      await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-      );
-    }
   };
 
   useEffect(() => {
     setupNotifications();
 
     const unsubscribeFCM = messaging().onMessage(async remoteMessage => {
+
+      const callId = remoteMessage?.data?.callId;
+
+      if(!callId) return;
+
       await notifee.displayNotification({
         title: remoteMessage.notification?.title,
         body: remoteMessage.notification?.body,
-        data: { callId: remoteMessage.data.callId },
+        data: { callId: String(callId)},
         android: {
           channelId: 'calls',
           importance: AndroidImportance.HIGH,
